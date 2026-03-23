@@ -1,0 +1,1426 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>葡萄糖數據摘要</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Helvetica Neue", Arial, "PingFang TC", "Microsoft JhengHei", sans-serif;
+      background: #f5f7fa;
+      color: #333;
+      padding: 24px 16px;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 1.5rem;
+      margin-bottom: 10px;
+      color: #1a1a2e;
+    }
+
+    #upload-area label {
+      font-size: 0.95rem;
+      color: #555;
+    }
+
+    #file-input {
+      padding: 8px 12px;
+      border: 2px dashed #999;
+      border-radius: 8px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+
+    #status {
+      font-size: 0.85rem;
+      color: #888;
+    }
+
+    #charts {
+      display: flex;
+      flex-direction: column;
+      gap: 40px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    /* ── Session divider ── */
+    .session-header {
+      max-width: 900px;
+      margin: 8px auto 4px;
+      padding: 10px 18px;
+      background: #e8edf5;
+      border-left: 4px solid #4e9af1;
+      border-radius: 8px;
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .session-header-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #1a3a6b;
+      font-family: monospace;
+    }
+    .session-header-range {
+      font-size: 0.8rem;
+      color: #555;
+    }
+
+    /* ── Session summary badge ── */
+    .session-summary {
+      max-width: 900px;
+      margin: 0 auto 12px;
+    }
+    .session-serial-badge {
+      display: inline-block;
+      margin-left: 10px;
+      font-size: 0.72rem;
+      font-family: monospace;
+      background: #dce8fa;
+      color: #1a3a6b;
+      padding: 2px 8px;
+      border-radius: 10px;
+      vertical-align: middle;
+    }
+
+    .day-card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      padding: 20px 24px;
+    }
+
+    .day-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #1a1a2e;
+    }
+
+    .day-stats-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 16px;
+      align-items: center;
+      margin-bottom: 12px;
+      font-size: 0.8rem;
+      color: #555;
+    }
+
+    .day-stats-bar .ds-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .day-stats-bar .ds-val {
+      font-weight: 600;
+      color: #1a1a2e;
+    }
+
+    .chart-wrapper {
+      position: relative;
+      height: 220px;
+    }
+
+    .legend {
+      display: flex;
+      gap: 16px;
+      margin-top: 10px;
+      font-size: 0.8rem;
+      color: #666;
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    #html-tooltip {
+      position: fixed;
+      pointer-events: none;
+      background: rgba(30, 30, 40, 0.92);
+      color: #fff;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      max-width: 300px;
+      white-space: pre-wrap;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+      z-index: 9999;
+      display: none;
+    }
+
+    #summary {
+      max-width: 900px;
+      margin: 0 auto 16px;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      padding: 20px 24px;
+      display: none;
+    }
+
+    #summary h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 14px;
+      color: #1a1a2e;
+    }
+
+    .hba1c-banner {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .hba1c-value {
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: #1a1a2e;
+    }
+
+    .hba1c-label {
+      font-size: 0.9rem;
+      color: #666;
+    }
+
+    .hba1c-note {
+      font-size: 0.78rem;
+      color: #999;
+      margin-bottom: 16px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .stat-card {
+      background: #f5f7fa;
+      border-radius: 8px;
+      padding: 10px 12px;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: #1a1a2e;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: #777;
+      margin-top: 2px;
+    }
+
+    .day-stats-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+
+    .day-stats-table th {
+      text-align: left;
+      padding: 5px 8px;
+      border-bottom: 2px solid #eee;
+      color: #555;
+      font-weight: 600;
+    }
+
+    .day-stats-table td {
+      padding: 5px 8px;
+      border-bottom: 1px solid #f0f0f0;
+      color: #333;
+    }
+
+    .day-stats-table tr:last-child td { border-bottom: none; }
+
+    .tir-bar {
+      display: flex;
+      height: 8px;
+      border-radius: 4px;
+      overflow: hidden;
+      min-width: 80px;
+    }
+
+    .tir-low  { background: #e53935; }
+    .tir-ok   { background: #43a047; }
+    .tir-high { background: #fb8c00; }
+    .tir-vhigh{ background: #e53935; }
+
+    #ai-config {
+      max-width: 900px;
+      margin: 0 auto 20px;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      padding: 14px 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    #ai-config label {
+      font-size: 0.82rem;
+      color: #555;
+      white-space: nowrap;
+    }
+
+    #ai-config input {
+      flex: 1;
+      min-width: 120px;
+      padding: 5px 8px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 0.82rem;
+    }
+
+    #ai-config .ai-field {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+      min-width: 160px;
+    }
+
+    .ai-summary-area {
+      margin-top: 12px;
+      padding: 12px 14px;
+      background: #f0f4ff;
+      border-left: 3px solid #5c7cfa;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      line-height: 1.65;
+      color: #222;
+      white-space: pre-wrap;
+      display: none;
+    }
+
+    .ai-summary-area.loading {
+      color: #888;
+      font-style: italic;
+    }
+
+    .ai-btn {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 5px 14px;
+      background: #5c7cfa;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .ai-btn:hover { background: #3b5bdb; }
+    .ai-btn:disabled { background: #aaa; cursor: not-allowed; }
+
+    .ai-overall-area {
+      max-width: 900px;
+      margin: 0 auto 24px;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      padding: 18px 24px;
+      border-left: 4px solid #5c7cfa;
+    }
+
+    .ai-overall-area h3 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #3b4b9a;
+      margin-bottom: 10px;
+    }
+
+    .ai-overall-content {
+      font-size: 0.85rem;
+      line-height: 1.7;
+      color: #222;
+      white-space: pre-wrap;
+    }
+
+    .ai-overall-content.loading {
+      color: #888;
+      font-style: italic;
+    }
+
+    .notes-table-wrapper {
+      margin-top: 14px;
+    }
+
+    .notes-table-title {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #7b1fa2;
+      margin-bottom: 6px;
+    }
+
+    .notes-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+
+    .notes-table th {
+      text-align: left;
+      padding: 5px 8px;
+      border-bottom: 2px solid #e8c8f0;
+      color: #7b1fa2;
+      font-weight: 600;
+      background: #fdf4ff;
+    }
+
+    .notes-table td {
+      padding: 5px 8px;
+      border-bottom: 1px solid #f5e8fa;
+      color: #333;
+      vertical-align: top;
+    }
+
+    .notes-table tr:last-child td { border-bottom: none; }
+
+    .notes-table .note-time {
+      white-space: nowrap;
+      color: #9c27b0;
+      font-weight: 600;
+      width: 56px;
+    }
+
+    .notes-table .note-glucose {
+      white-space: nowrap;
+      width: 80px;
+    }
+
+    .notes-table tbody tr:hover {
+      background: #f0e6ff;
+      cursor: pointer;
+    }
+
+    .notes-table .note-text {
+      white-space: pre-wrap;
+      line-height: 1.5;
+    }
+
+    .collapsible-header {
+      max-width: 900px;
+      margin: 0 auto 2px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      user-select: none;
+      font-size: 0.8rem;
+      color: #aaa;
+      padding: 2px 0;
+    }
+
+    .collapsible-header:hover { color: #555; }
+
+    .collapsible-header .chevron {
+      display: inline-block;
+      transition: transform 0.2s;
+      font-style: normal;
+    }
+
+    .collapsible-header.open .chevron { transform: rotate(90deg); }
+
+    .collapsible-body {
+      display: none;
+    }
+
+    .collapsible-body.open {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <h1>葡萄糖數據摘要</h1>
+  <div id="owner-name" style="text-align:left;max-width:900px;margin:0 auto 8px;font-size:0.95rem;color:#555"></div>
+
+  <!-- CSV upload collapsible -->
+  <div class="collapsible-header" id="upload-toggle">
+    <i class="chevron">▶</i> 匯入 CSV
+    <span id="status" style="color:#aaa;margin-left:4px">尚未載入檔案</span>
+  </div>
+  <div class="collapsible-body" id="upload-area">
+    <div style="max-width:900px;margin:0 auto 8px;background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.08);padding:16px 24px;display:flex;flex-direction:column;gap:8px;align-items:flex-start">
+      <label for="file-input" style="font-size:0.9rem;color:#555">選擇 LibreLink 匯出的 CSV 檔案：</label>
+      <input type="file" id="file-input" accept=".csv" style="padding:6px 10px;border:2px dashed #999;border-radius:8px;background:#fff;cursor:pointer;font-size:0.9rem" />
+    </div>
+  </div>
+  <!-- AI config collapsible -->
+  <div class="collapsible-header" id="ai-config-toggle">
+    <i class="chevron">▶</i> AI 分析設定
+  </div>
+  <div class="collapsible-body" id="ai-config-body">
+    <div id="ai-config">
+      <div class="ai-field">
+        <label for="ai-url">Proxy URL</label>
+        <input id="ai-url" type="text" value="http://localhost:4000" placeholder="http://localhost:4000" />
+      </div>
+      <div class="ai-field">
+        <label for="ai-key">API Key</label>
+        <input id="ai-key" type="password" placeholder="（選填）" />
+      </div>
+      <div class="ai-field">
+        <label for="ai-model">Model</label>
+        <input id="ai-model" type="text" placeholder="gpt-4o-mini" />
+      </div>
+      <button id="analyze-all-btn" class="ai-btn" style="white-space:nowrap;margin-top:0" disabled>分析所有日期</button>
+      <div id="ai-usage" style="font-size:0.78rem;color:#888;align-self:center;white-space:nowrap"></div>
+    </div>
+  </div>
+
+  <div id="html-tooltip"></div>
+
+  <!-- Session selector (hidden until CSV loaded) -->
+  <div id="session-selector-wrap" style="display:none;max-width:900px;margin:12px auto 4px;display:none;align-items:center;gap:10px;flex-wrap:wrap">
+    <label for="session-select" style="font-size:0.85rem;color:#555;white-space:nowrap">選擇裝置 / 期間：</label>
+    <select id="session-select" style="font-size:0.85rem;padding:5px 10px;border:1px solid #ccc;border-radius:8px;background:#fff;cursor:pointer;flex:1;min-width:200px"></select>
+  </div>
+
+  <div id="summary"></div>
+  <div id="ai-overall" class="ai-overall-area" style="display:none"></div>
+  <div id="charts"></div>
+
+  <script>
+  // ── CSV parser (handles quoted multiline fields) ──────────────────────────
+  function parseCSV(text) {
+    const rows = [];
+    let row = [];
+    let field = '';
+    let inQuote = false;
+
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      const next = text[i + 1];
+
+      if (inQuote) {
+        if (ch === '"' && next === '"') {
+          field += '"';
+          i++;
+        } else if (ch === '"') {
+          inQuote = false;
+        } else {
+          field += ch;
+        }
+      } else {
+        if (ch === '"') {
+          inQuote = true;
+        } else if (ch === ',') {
+          row.push(field);
+          field = '';
+        } else if (ch === '\r' && next === '\n') {
+          row.push(field);
+          field = '';
+          rows.push(row);
+          row = [];
+          i++;
+        } else if (ch === '\n' || ch === '\r') {
+          row.push(field);
+          field = '';
+          rows.push(row);
+          row = [];
+        } else {
+          field += ch;
+        }
+      }
+    }
+    // last field / row
+    if (field !== '' || row.length > 0) {
+      row.push(field);
+      rows.push(row);
+    }
+    return rows;
+  }
+
+  // ── Process rows into per-session, per-day data ───────────────────────────
+  // Returns: sessionMap = [ { serial, dayMap } ]
+  // Each unique serial number (col[1]) is treated as a separate CGM session.
+  // Sessions are returned in the order their first data point appears.
+  function processRows(rows) {
+    // row[0] = metadata, row[1] = headers, row[2+] = data
+    const dataRows = rows.slice(2);
+
+    const toMinutes = (timeStr) => {
+      const parts = timeStr.split(':');
+      return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+    };
+
+    // First pass: collect glucose points and note entries, keyed by serial
+    // serialOrder preserves insertion order of first encounter
+    const serialOrder = [];
+    // perSerial: serial -> { glucosePoints: [], noteEntries: [] }
+    const perSerial = {};
+
+    for (const row of dataRows) {
+      if (row.length < 6) continue;
+      const serial      = row[1]?.trim() || '(unknown)';
+      const datetimeStr = row[2]?.trim();
+      if (!datetimeStr) continue;
+
+      const spaceIdx = datetimeStr.indexOf(' ');
+      if (spaceIdx === -1) continue;
+      const dateStr = datetimeStr.substring(0, spaceIdx);
+      const timeStr = datetimeStr.substring(spaceIdx + 1);
+      const minutes = toMinutes(timeStr);
+
+      if (!perSerial[serial]) {
+        perSerial[serial] = { glucosePoints: [], noteEntries: [] };
+        serialOrder.push(serial);
+      }
+
+      const type  = row[3]?.trim();
+      const col4  = row[4]?.trim();   // 歷史葡萄糖
+      const col5  = row[5]?.trim();   // 掃描葡萄糖
+      const col13 = row[13]?.trim();  // 備註
+
+      if (type === '0' && col4 !== '') {
+        const glucose = parseFloat(col4);
+        if (!isNaN(glucose)) perSerial[serial].glucosePoints.push({ dateStr, minutes, glucose });
+      } else if (type === '1' && col5 !== '') {
+        const glucose = parseFloat(col5);
+        if (!isNaN(glucose)) perSerial[serial].glucosePoints.push({ dateStr, minutes, glucose });
+      } else if (type === '6' && col13 !== '') {
+        perSerial[serial].noteEntries.push({ dateStr, minutes, text: col13 });
+      }
+    }
+
+    // Build one dayMap per serial
+    const sessionMap = serialOrder.map(serial => {
+      const { glucosePoints, noteEntries } = perSerial[serial];
+
+      // Group glucose by day
+      const dayMap = {};
+      for (const gp of glucosePoints) {
+        if (!dayMap[gp.dateStr]) dayMap[gp.dateStr] = [];
+        dayMap[gp.dateStr].push({ minutes: gp.minutes, glucose: gp.glucose, noteText: '' });
+      }
+      for (const pts of Object.values(dayMap)) {
+        pts.sort((a, b) => a.minutes - b.minutes);
+      }
+
+      // Match each note to nearest glucose point (within 30 min)
+      for (const ne of noteEntries) {
+        const pts = dayMap[ne.dateStr];
+        if (!pts) continue;
+        let best = null, bestDiff = Infinity;
+        for (const pt of pts) {
+          const diff = Math.abs(pt.minutes - ne.minutes);
+          if (diff < bestDiff) { bestDiff = diff; best = pt; }
+        }
+        if (best && bestDiff <= 30) {
+          best.noteText = best.noteText ? best.noteText + '\n---\n' + ne.text : ne.text;
+        }
+      }
+
+      return { serial, dayMap };
+    });
+
+    return sessionMap;
+  }
+
+  // ── HbA1c / summary helpers ───────────────────────────────────────────────
+  // ADAG formula (ADA recommended): HbA1c = (avgGlucose + 46.7) / 28.7
+  const toHbA1c = (avg) => ((avg + 46.7) / 28.7).toFixed(1);
+
+  const hba1cColor = (v) => {
+    if (v < 7)   return '#43a047';
+    if (v < 7.5) return '#8bc34a';
+    if (v < 8)   return '#fb8c00';
+    return '#e53935';
+  };
+
+  // renderSummary now accepts a single session { serial, dayMap }
+  function renderSummary({ serial, dayMap }) {
+    const el = document.getElementById('summary');
+    el.innerHTML = '';
+
+    const allPts = Object.values(dayMap).flat();
+    if (allPts.length === 0) { el.style.display = 'none'; return; }
+    el.style.display = 'block';
+
+      const allGlucose = allPts.map(p => p.glucose);
+      const globalAvg  = allGlucose.reduce((a, b) => a + b, 0) / allGlucose.length;
+      const globalMin  = Math.min(...allGlucose);
+      const globalMax  = Math.max(...allGlucose);
+      const hba1c      = parseFloat(toHbA1c(globalAvg));
+      const color      = hba1cColor(hba1c);
+
+      const low   = allGlucose.filter(v => v < 80).length;
+      const ok    = allGlucose.filter(v => v >= 80 && v <= 130).length;
+      const high  = allGlucose.filter(v => v > 130 && v <= 180).length;
+      const vhigh = allGlucose.filter(v => v > 180).length;
+      const total = allGlucose.length;
+      const pct   = (n) => Math.round(n / total * 100);
+
+      const sortedDays = Object.keys(dayMap).sort();
+      const shortSerial = serial.length > 18 ? serial.slice(0, 8) + '…' + serial.slice(-4) : serial;
+
+      const block = document.createElement('div');
+      block.className = 'session-summary';
+      block.innerHTML = `
+        <h2>整體摘要（${sortedDays[0]} ～ ${sortedDays[sortedDays.length-1]}）
+          <span class="session-serial-badge" title="${escapeHtml(serial)}">序號 ${escapeHtml(shortSerial)}</span>
+        </h2>
+        <div class="hba1c-banner">
+          <div class="hba1c-value" style="color:${color}">${hba1c}%</div>
+          <div class="hba1c-label">預估糖化血色素 HbA1c</div>
+        </div>
+        <div class="hba1c-note">依據 ADAG 公式（ADA 建議）：HbA1c = (平均血糖 + 46.7) ÷ 28.7，以本期所有量測值計算</div>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-value">${Math.round(globalAvg)}</div>
+            <div class="stat-label">平均血糖 mg/dL</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" style="color:#43a047">${pct(ok)}%</div>
+            <div class="stat-label">目標內 (80–130)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" style="color:#fb8c00">${pct(high)}%</div>
+            <div class="stat-label">偏高 (130–180)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" style="color:#e53935">${pct(vhigh)}%</div>
+            <div class="stat-label">過高 (&gt;180)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" style="color:#c62828">${pct(low)}%</div>
+            <div class="stat-label">低血糖 (&lt;80)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">${globalMin} – ${globalMax}</div>
+            <div class="stat-label">範圍 mg/dL</div>
+          </div>
+        </div>
+      `;
+      el.appendChild(block);
+  }
+
+  // ── HTML tooltip (shared, follows mouse, never overlaps chart) ──────────
+  const htmlTip = document.getElementById('html-tooltip');
+
+  document.addEventListener('mousemove', (e) => {
+    if (htmlTip.style.display === 'none') return;
+    const pad = 14;
+    const tw = htmlTip.offsetWidth;
+    const th = htmlTip.offsetHeight;
+    let x = e.clientX + 16;
+    let y = e.clientY + 16;
+    if (x + tw + pad > window.innerWidth)  x = e.clientX - tw - 16;
+    if (y + th + pad > window.innerHeight) y = e.clientY - th - 16;
+    htmlTip.style.left = x + 'px';
+    htmlTip.style.top  = y + 'px';
+  });
+
+  function showTip(text) {
+    htmlTip.textContent = text;
+    htmlTip.style.display = 'block';
+  }
+
+  function hideTip() {
+    htmlTip.style.display = 'none';
+  }
+
+  // ── LiteLLM batch summary (one call for all days) ────────────────────────
+
+  // Build per-day stats block for prompt
+  function buildDayBlock(dateStr, pts) {
+    const vals  = pts.map(p => p.glucose);
+    const avg   = (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1);
+    const min   = Math.min(...vals);
+    const max   = Math.max(...vals);
+    const total = vals.length;
+    const pct   = n => Math.round(n / total * 100);
+    const low   = vals.filter(v => v < 80).length;
+    const ok    = vals.filter(v => v >= 80 && v <= 130).length;
+    const high  = vals.filter(v => v > 130 && v <= 180).length;
+    const vhigh = vals.filter(v => v > 180).length;
+    const hba1c = ((parseFloat(avg) + 46.7) / 28.7).toFixed(1);
+    const noteList = pts
+      .filter(p => p.noteText)
+      .map(p => {
+        const h = String(Math.floor(p.minutes / 60)).padStart(2, '0');
+        const m = String(p.minutes % 60).padStart(2, '0');
+        return `  ${h}:${m} — ${p.noteText}`;
+      });
+    return [
+      `### ${dateStr}`,
+      `- 量測次數：${total}，平均：${avg} mg/dL，最低：${min}，最高：${max}，預估 HbA1c：${hba1c}%`,
+      `- 目標內(80–130)：${pct(ok)}%，偏高(130–180)：${pct(high)}%，過高(>180)：${pct(vhigh)}%，低血糖(<80)：${pct(low)}%`,
+      ...(noteList.length ? ['- 備註：', ...noteList] : []),
+    ].join('\n');
+  }
+
+  // registry: key = "serial::dateStr" -> { el, serial, dateStr }
+  const aiOutputMap = {};
+
+  async function runAllAnalysis() {
+    const btn   = document.getElementById('analyze-all-btn');
+    const usage = document.getElementById('ai-usage');
+    const url   = document.getElementById('ai-url').value.trim().replace(/\/$/, '');
+    const key   = document.getElementById('ai-key').value.trim();
+    const model = document.getElementById('ai-model').value.trim() || 'gpt-4o-mini';
+
+    if (!url) return;
+
+    btn.disabled = true;
+    usage.textContent = '';
+
+    const t0 = Date.now();
+
+    // Live elapsed-time ticker
+    let tickerInterval = setInterval(() => {
+      const s = ((Date.now() - t0) / 1000).toFixed(1);
+      usage.textContent = `分析中… ${s}s`;
+    }, 100);
+
+    // Show loading state on all registered output elements
+    for (const [, entry] of Object.entries(aiOutputMap)) {
+      entry.el.className = 'ai-summary-area loading';
+      entry.el.style.display = 'block';
+      entry.el.textContent = 'AI 分析中…';
+    }
+
+    // Show loading state on overall recommendation
+    const overallArea = document.getElementById('ai-overall');
+    overallArea.style.display = 'block';
+    overallArea.innerHTML = '<h3>整體建議</h3><div class="ai-overall-content loading">AI 分析中…</div>';
+
+    // Build one combined prompt, grouped by session
+    // Group keys by serial (preserve order)
+    const sessionGroups = {}; // serial -> [keys]
+    for (const key of Object.keys(aiOutputMap)) {
+      const { serial } = aiOutputMap[key];
+      if (!sessionGroups[serial]) sessionGroups[serial] = [];
+      sessionGroups[serial].push(key);
+    }
+
+    const allDays = Object.keys(aiOutputMap); // for max_tokens calc
+    const sessionBlocks = [];
+    for (const [serial, keys] of Object.entries(sessionGroups)) {
+      const shortSerial = serial.length > 18 ? serial.slice(0, 8) + '…' + serial.slice(-4) : serial;
+      const sortedKeys = keys.sort((a, b) => a.localeCompare(b));
+      const dayBlocks = sortedKeys.map(k => buildDayBlock(aiOutputMap[k].dateStr, aiOutputMap[k].pts));
+      sessionBlocks.push(`## 裝置序號：${shortSerial}\n\n${dayBlocks.join('\n\n')}`);
+    }
+
+    const prompt = `以下是每日連續血糖監測數據（依裝置序號分組，不同序號代表不同時期的 CGM 裝置），請用繁體中文輸出分析，語氣親切易懂。
+
+請嚴格依照以下格式輸出：
+1. 先為【每一天】各輸出簡短（3–5句）的分析，每天以 ### YYYY-MM-DD 開頭。
+2. 所有日期分析完畢後，最後輸出一段整體建議，以 ### 整體建議 開頭，針對這段期間的血糖趨勢、飲食或生活習慣給出 5–8 句的綜合建議。
+
+${sessionBlocks.join('\n\n---\n\n')}
+
+請依上述格式逐日輸出分析，最後附上整體建議。`;
+
+    try {
+      const res = await fetch(`${url}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(key ? { Authorization: `Bearer ${key}` } : {})
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 400 * allDays.length + 600,
+        })
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`HTTP ${res.status}: ${errText}`);
+      }
+
+      const data  = await res.json();
+      const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+      const reply = data.choices?.[0]?.message?.content?.trim() ?? '';
+
+      // Show token usage + elapsed time
+      const u = data.usage;
+      if (u) {
+        usage.textContent = `用時 ${elapsed}s｜prompt ${u.prompt_tokens} + completion ${u.completion_tokens} = ${u.total_tokens} tokens`;
+      } else {
+        usage.textContent = `用時 ${elapsed}s`;
+      }
+
+      // Split reply by ### sections (dates + 整體建議)
+      const sections = reply.split(/\n(?=### )/);
+      for (const section of sections) {
+        // Per-day section
+        const m = section.match(/^### (\d{4}-\d{2}-\d{2})\n?([\s\S]*)/);
+        if (m) {
+          const [, dateStr, text] = m;
+          // Find the matching entry across all serials
+          for (const [mapKey, entry] of Object.entries(aiOutputMap)) {
+            if (entry.dateStr === dateStr) {
+              entry.el.className = 'ai-summary-area';
+              entry.el.textContent = text.trim();
+            }
+          }
+          continue;
+        }
+        // Overall recommendation section
+        const mo = section.match(/^### 整體建議\n?([\s\S]*)/);
+        if (mo) {
+          overallArea.innerHTML = `<h3>整體建議</h3><div class="ai-overall-content">${escapeHtml(mo[1].trim())}</div>`;
+        }
+      }
+
+      // Fallback: if any day didn't get a match, show the raw reply
+      for (const [, entry] of Object.entries(aiOutputMap)) {
+        if (entry.el.className.includes('loading')) {
+          entry.el.className = 'ai-summary-area';
+          entry.el.textContent = reply;
+        }
+      }
+    } catch (err) {
+      usage.textContent = `失敗（${((Date.now() - t0) / 1000).toFixed(1)}s）`;
+      for (const [, entry] of Object.entries(aiOutputMap)) {
+        entry.el.className = 'ai-summary-area';
+        entry.el.textContent = `呼叫失敗：${err.message}`;
+      }
+      overallArea.innerHTML = `<h3>整體建議</h3><div class="ai-overall-content">呼叫失敗：${escapeHtml(err.message)}</div>`;
+    } finally {
+      clearInterval(tickerInterval);
+      btn.disabled = false;
+    }
+  }
+
+  document.getElementById('analyze-all-btn').addEventListener('click', runAllAnalysis);
+  const chartInstances = [];
+
+  // ── Utility helpers ───────────────────────────────────────────────────────
+  function escapeHtml(str) {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function glucoseColorLabel(val) {
+    if (val < 80)  return { color: '#c62828' };
+    if (val > 180) return { color: '#e53935' };
+    if (val > 130) return { color: '#e65100' };
+    return { color: '#2e7d32' };
+  }
+
+  // ── Build charts ──────────────────────────────────────────────────────────
+  let allSessionMap = []; // kept for batch AI prompt
+
+  function isAiReady() {
+    return document.getElementById('ai-url').value.trim() &&
+           document.getElementById('ai-key').value.trim() &&
+           document.getElementById('ai-model').value.trim();
+  }
+
+  function minutesToLabel(m) {
+    const h = String(Math.floor(m / 60)).padStart(2, '0');
+    const mm = String(m % 60).padStart(2, '0');
+    return `${h}:${mm}`;
+  }
+
+  // renderCharts now accepts a single session { serial, dayMap }
+  function renderCharts({ serial, dayMap }) {
+    const container = document.getElementById('charts');
+    container.innerHTML = '';
+    chartInstances.forEach(c => c.destroy());
+    chartInstances.length = 0;
+    // reset AI output registry
+    for (const k of Object.keys(aiOutputMap)) delete aiOutputMap[k];
+
+    const sortedDays = Object.keys(dayMap).sort();
+    let dayIndex = 0;
+
+      for (const dateStr of sortedDays) {
+        const pts = dayMap[dateStr];
+        if (pts.length === 0) continue;
+
+        dayIndex++;
+
+      // card
+      const card = document.createElement('div');
+      card.className = 'day-card';
+
+      const title = document.createElement('div');
+      title.className = 'day-title';
+      const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+      const dateObj = new Date(dateStr + 'T00:00:00');
+      const dow = weekdays[dateObj.getDay()];
+        title.textContent = `第 ${dayIndex} 天｜${dateStr}（週${dow}）`;
+      card.appendChild(title);
+
+      // Day stats bar
+      const vals = pts.map(p => p.glucose);
+      const dayAvg   = vals.reduce((a, b) => a + b, 0) / vals.length;
+      const dayMin   = Math.min(...vals);
+      const dayMax   = Math.max(...vals);
+      const dayTotal = vals.length;
+      const dp = (n) => Math.round(n / dayTotal * 100);
+      const dLow   = dp(vals.filter(v => v < 80).length);
+      const dOk    = dp(vals.filter(v => v >= 80 && v <= 130).length);
+      const dHigh  = dp(vals.filter(v => v > 130 && v <= 180).length);
+      const dVhigh = dp(vals.filter(v => v > 180).length);
+      const dayHba1c = toHbA1c(dayAvg);
+
+      const statsBar = document.createElement('div');
+      statsBar.className = 'day-stats-bar';
+      statsBar.innerHTML = `
+        <div class="ds-item">平均 <span class="ds-val">${Math.round(dayAvg)}</span> mg/dL</div>
+        <div class="ds-item">範圍 <span class="ds-val">${dayMin} – ${dayMax}</span></div>
+        <div class="ds-item">
+          <div class="tir-bar" style="width:100px" title="低血糖${dLow}% / 目標${dOk}% / 偏高${dHigh}% / 過高${dVhigh}%">
+            <div class="tir-low"    style="width:${dLow}%"></div>
+            <div class="tir-ok"     style="width:${dOk}%"></div>
+            <div class="tir-high"   style="width:${dHigh}%"></div>
+            <div class="tir-vhigh"  style="width:${dVhigh}%"></div>
+          </div>
+        </div>
+        <div class="ds-item" style="color:#888">
+          <span style="color:#c62828">低${dLow}%</span>　
+          <span style="color:#2e7d32">目標${dOk}%</span>　
+          <span style="color:#e65100">偏高${dHigh}%</span>　
+          <span style="color:#e53935">過高${dVhigh}%</span>
+        </div>
+      `;
+      card.appendChild(statsBar);
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'chart-wrapper';
+      const canvas = document.createElement('canvas');
+      wrapper.appendChild(canvas);
+      card.appendChild(wrapper);
+
+      // legend
+      const legend = document.createElement('div');
+      legend.className = 'legend';
+      legend.innerHTML = `
+        <div class="legend-item"><div class="legend-dot" style="background:#43a047"></div> 正常 (80–130)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#fb8c00"></div> 偏高 (130–180)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#e53935"></div> 異常 (&lt;80 或 &gt;180)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#9c27b0;border:2px solid #6a0080"></div> 含備註</div>
+        <div class="legend-item"><div class="legend-dot" style="background:rgba(144,238,144,0.4);border-radius:2px;width:22px;height:10px"></div> 目標範圍 (80–130)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:rgba(255,235,59,0.3);border-radius:2px;width:22px;height:10px"></div> 睡前容許 (130–180)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:rgba(255,99,99,0.3);border-radius:2px;width:22px;height:10px"></div> 低血糖 (&lt;80)</div>
+      `;
+      card.appendChild(legend);
+
+      // Notes table (only if any notes exist for this day)
+      const notedPts = pts.filter(p => p.noteText);
+      const noteTableRows = []; // filled below, events bound after chart creation
+      if (notedPts.length > 0) {
+        const notesWrapper = document.createElement('div');
+        notesWrapper.className = 'notes-table-wrapper';
+
+        const titleEl = document.createElement('div');
+        titleEl.className = 'notes-table-title';
+        titleEl.textContent = '備註紀錄';
+        notesWrapper.appendChild(titleEl);
+
+        const table = document.createElement('table');
+        table.className = 'notes-table';
+        table.innerHTML = `<thead><tr>
+          <th class="note-time">時間</th>
+          <th class="note-glucose">血糖 mg/dL</th>
+          <th>備註內容</th>
+        </tr></thead>`;
+
+        const tbody = document.createElement('tbody');
+        for (const p of notedPts) {
+          const h = String(Math.floor(p.minutes / 60)).padStart(2, '0');
+          const m = String(p.minutes % 60).padStart(2, '0');
+          const gc = glucoseColorLabel(p.glucose);
+          const tr = document.createElement('tr');
+          tr.style.cursor = 'pointer';
+          tr.innerHTML = `
+            <td class="note-time">${h}:${m}</td>
+            <td class="note-glucose" style="color:${gc.color}">${p.glucose}</td>
+            <td class="note-text">${escapeHtml(p.noteText)}</td>`;
+          tbody.appendChild(tr);
+          // store reference with the pts index for later event binding
+          noteTableRows.push({ tr, ptsIdx: pts.indexOf(p) });
+        }
+        table.appendChild(tbody);
+        notesWrapper.appendChild(table);
+        card.appendChild(notesWrapper);
+      }
+
+      container.appendChild(card);
+
+      // data — use minutes as numeric x values
+      const chartData = pts.map(p => ({ x: p.minutes, y: p.glucose }));
+      const notes = pts.map(p => p.noteText);
+
+      // AI summary output area — registered so runAllAnalysis can fill it
+      const aiOut = document.createElement('div');
+      aiOut.className = 'ai-summary-area';
+        aiOutputMap[dateStr] = { el: aiOut, serial, dateStr, pts };
+      card.appendChild(aiOut);
+
+      // colour helpers
+      const glucoseColor = (val) => {
+        if (val < 80)  return { bg: '#e53935', border: '#b71c1c' }; // low — red
+        if (val > 180) return { bg: '#e53935', border: '#b71c1c' }; // very high — red
+        if (val > 130) return { bg: '#fb8c00', border: '#e65100' }; // high — orange
+        return         { bg: '#43a047', border: '#1b5e20' };         // normal — green
+      };
+
+      const pointBg     = pts.map(p => p.noteText ? '#9c27b0' : glucoseColor(p.glucose).bg);
+      const pointBorder = pts.map(p => p.noteText ? '#6a0080' : glucoseColor(p.glucose).border);
+      const pointR      = pts.map(p => p.noteText ? 5 : 2);
+      const pointStyle  = pts.map(p => p.noteText ? 'rectRot' : 'circle');
+
+      // hover state — must be declared before chart so the plugin closure captures it
+      let hoveredIdx = null;
+
+      const chart = new Chart(canvas, {
+        type: 'line',
+        data: {
+          datasets: [{
+            label: '葡萄糖 mg/dL',
+            data: chartData,
+            borderColor: '#4e9af1',
+            borderWidth: 2,
+            tension: 0.3,
+            segment: {
+              borderColor: (ctx) => {
+                // colour the segment by the worse of the two endpoints
+                const v0 = ctx.p0.parsed.y;
+                const v1 = ctx.p1.parsed.y;
+                const abnormal = (v) => v < 80 || v > 180;
+                const warning  = (v) => v > 130 && v <= 180;
+                if (abnormal(v0) || abnormal(v1)) return '#e53935'; // red
+                if (warning(v0)  || warning(v1))  return '#fb8c00'; // orange
+                return '#43a047';                                    // green
+              }
+            },
+            pointBackgroundColor: pointBg,
+            pointBorderColor: pointBorder,
+            pointRadius: pointR,
+            pointHoverRadius: pts.map(p => p.noteText ? 8 : 5),
+            pointStyle,
+            fill: false,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { enabled: false },
+          },
+          scales: {
+            x: {
+              type: 'linear',
+              min: 0,
+              max: 23 * 60 + 59,
+              afterBuildTicks(axis) {
+                axis.ticks = Array.from({ length: 24 }, (_, i) => ({ value: i * 60 }));
+              },
+              ticks: {
+                maxRotation: 0,
+                autoSkip: false,
+                font: { size: 10 },
+                color: () => document.body.classList.contains('dark') ? '#6b7280' : '#666',
+                callback: (val) => String(val / 60).padStart(2, '00'),
+              },
+              grid: { color: () => document.body.classList.contains('dark') ? '#2d3148' : '#eee' },
+            },
+            y: {
+              min: 40,
+              max: 220,
+              title: { display: true, text: 'mg/dL', font: { size: 11 }, color: () => document.body.classList.contains('dark') ? '#9ca3af' : '#666' },
+              grid: { color: () => document.body.classList.contains('dark') ? '#2d3148' : '#eee' },
+              ticks: { font: { size: 11 }, color: () => document.body.classList.contains('dark') ? '#6b7280' : '#666' },
+            }
+          }
+        },
+        plugins: [
+          {
+            // Draw target range bands
+            id: 'rangeBand',
+            beforeDraw(chart) {
+              const { ctx, chartArea, scales } = chart;
+              if (!chartArea) return;
+              const y80  = scales.y.getPixelForValue(80);
+              const y130 = scales.y.getPixelForValue(130);
+              const y180 = scales.y.getPixelForValue(180);
+              const yBottom = scales.y.getPixelForValue(scales.y.min);
+              const yTop    = scales.y.getPixelForValue(scales.y.max);
+              ctx.save();
+
+              // ── Awake period band (08:00–23:00) ──
+              const xAwakeStart = scales.x.getPixelForValue(8 * 60);   // 480
+              const xAwakeEnd   = scales.x.getPixelForValue(23 * 60);  // 1380
+              ctx.fillStyle = 'rgba(173, 216, 255, 0.25)';
+              ctx.fillRect(xAwakeStart, yTop, xAwakeEnd - xAwakeStart, yBottom - yTop);
+
+              // Vertical boundary lines for awake period
+              ctx.lineWidth = 1;
+              ctx.setLineDash([5, 4]);
+              ctx.strokeStyle = 'rgba(180, 140, 0, 0.35)';
+              ctx.beginPath(); ctx.moveTo(xAwakeStart, yTop); ctx.lineTo(xAwakeStart, yBottom); ctx.stroke();
+              ctx.beginPath(); ctx.moveTo(xAwakeEnd,   yTop); ctx.lineTo(xAwakeEnd,   yBottom); ctx.stroke();
+              ctx.setLineDash([]);
+
+              // Labels
+              ctx.font = '10px sans-serif';
+              ctx.fillStyle = 'rgba(150, 110, 0, 0.6)';
+              ctx.textAlign = 'center';
+              ctx.fillText('睡眠', (chartArea.left + xAwakeStart) / 2, yTop + 12);
+              ctx.fillText('清醒', (xAwakeStart + xAwakeEnd) / 2,      yTop + 12);
+              ctx.fillText('睡眠', (xAwakeEnd + chartArea.right) / 2,  yTop + 12);
+
+              // ── Glucose range bands ──
+              ctx.fillStyle = 'rgba(255, 99, 99, 0.12)';
+              ctx.fillRect(chartArea.left, y80, chartArea.right - chartArea.left, yBottom - y80);
+
+              ctx.fillStyle = 'rgba(144, 238, 144, 0.2)';
+              ctx.fillRect(chartArea.left, y130, chartArea.right - chartArea.left, y80 - y130);
+
+              ctx.fillStyle = 'rgba(255, 235, 59, 0.12)';
+              ctx.fillRect(chartArea.left, y180, chartArea.right - chartArea.left, y130 - y180);
+
+              ctx.lineWidth = 1;
+              ctx.setLineDash([4, 4]);
+              ctx.strokeStyle = 'rgba(220, 53, 53, 0.5)';
+              ctx.beginPath(); ctx.moveTo(chartArea.left, y80);  ctx.lineTo(chartArea.right, y80);  ctx.stroke();
+              ctx.strokeStyle = 'rgba(76, 175, 80, 0.6)';
+              ctx.beginPath(); ctx.moveTo(chartArea.left, y130); ctx.lineTo(chartArea.right, y130); ctx.stroke();
+              ctx.strokeStyle = 'rgba(200, 160, 0, 0.5)';
+              ctx.beginPath(); ctx.moveTo(chartArea.left, y180); ctx.lineTo(chartArea.right, y180); ctx.stroke();
+              ctx.setLineDash([]);
+              ctx.restore();
+            }
+          },
+          {
+            // Draw highlight ring on hovered point
+            id: 'hoverHighlight',
+            afterDraw(c) {
+              if (hoveredIdx === null) return;
+              const meta = c.getDatasetMeta(0);
+              const el = meta.data[hoveredIdx];
+              if (!el) return;
+              const { ctx } = c;
+              ctx.save();
+              // outer white halo
+              ctx.beginPath();
+              ctx.arc(el.x, el.y, 9, 0, Math.PI * 2);
+              ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+              ctx.lineWidth = 3;
+              ctx.stroke();
+              // coloured ring matching the point
+              ctx.beginPath();
+              ctx.arc(el.x, el.y, 9, 0, Math.PI * 2);
+              ctx.strokeStyle = pointBg[hoveredIdx];
+              ctx.lineWidth = 2.5;
+              ctx.stroke();
+              ctx.restore();
+            }
+          }
+        ]
+      });
+
+      chartInstances.push(chart);
+
+      // Bind hover events on note table rows → highlight point on chart
+      for (const { tr, ptsIdx } of noteTableRows) {
+        tr.addEventListener('mouseenter', () => {
+          hoveredIdx = ptsIdx;
+          chart.update('none');
+          tr.style.background = '#f0e6ff';
+        });
+        tr.addEventListener('mouseleave', () => {
+          hoveredIdx = null;
+          chart.update('none');
+          hideTip();
+          tr.style.background = '';
+        });
+      }
+
+      // Show tooltip + highlight for nearest point along X axis
+      canvas.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const xPixel = e.clientX - rect.left;
+        const ca = chart.chartArea;
+        if (!ca || xPixel < ca.left || xPixel > ca.right) {
+          hoveredIdx = null; chart.update('none'); hideTip(); return;
+        }
+
+        const xVal = chart.scales.x.getValueForPixel(xPixel);
+
+        let best = null, bestDiff = Infinity;
+        for (let i = 0; i < pts.length; i++) {
+          const diff = Math.abs(pts[i].minutes - xVal);
+          if (diff < bestDiff) { bestDiff = diff; best = i; }
+        }
+        if (best === null) { hoveredIdx = null; chart.update('none'); hideTip(); return; }
+
+        if (hoveredIdx !== best) { hoveredIdx = best; chart.update('none'); }
+
+        const p = pts[best];
+        let text = `${minutesToLabel(p.minutes)}　葡萄糖：${p.glucose} mg/dL`;
+        if (notes[best]) text += `\n\n── 備註 ──\n${notes[best]}`;
+        showTip(text);
+      });
+
+      canvas.addEventListener('mouseleave', () => {
+        hoveredIdx = null; chart.update('none'); hideTip();
+      });
+      } // end for dateStr
+  }
+
+  // ── Shared load-and-render helper ────────────────────────────────────────
+  function loadText(text, filename) {
+    const status = document.getElementById('status');
+    try {
+      const rows = parseCSV(text);
+      // Extract owner name from metadata row: col[4] = "產生者" value
+      const meta = rows[0] || [];
+      const ownerName = meta[4]?.trim() || '';
+      document.getElementById('owner-name').textContent = ownerName ? `資料所有人：${ownerName}` : '';
+      const sessionMap = processRows(rows);
+      const totalDays = sessionMap.reduce((n, s) => n + Object.keys(s.dayMap).length, 0);
+      allSessionMap = sessionMap;
+
+      // ── Build session dropdown ──
+      const wrap   = document.getElementById('session-selector-wrap');
+      const select = document.getElementById('session-select');
+      select.innerHTML = '';
+
+      sessionMap.forEach((session, idx) => {
+        const { serial, dayMap } = session;
+        const sortedDays = Object.keys(dayMap).sort();
+        const shortSerial = serial.length > 18 ? serial.slice(0, 8) + '…' + serial.slice(-4) : serial;
+        const opt = document.createElement('option');
+        opt.value = idx;
+        opt.textContent = `${sortedDays[0]} ～ ${sortedDays[sortedDays.length - 1]}（${sortedDays.length} 天）　序號：${shortSerial}`;
+        opt.title = serial;
+        select.appendChild(opt);
+      });
+
+      // Default to the latest session (last index)
+      const defaultIdx = sessionMap.length - 1;
+      select.value = defaultIdx;
+      wrap.style.display = sessionMap.length > 1 ? 'flex' : 'none';
+
+      // Helper: render the selected session
+      const renderSelected = () => {
+        const idx = parseInt(select.value, 10);
+        const session = allSessionMap[idx];
+        renderSummary(session);
+        renderCharts(session);
+        // Reset AI overall area when switching sessions
+        const overallArea = document.getElementById('ai-overall');
+        overallArea.style.display = 'none';
+        overallArea.innerHTML = '';
+      };
+
+      select.addEventListener('change', renderSelected);
+      renderSelected();
+
+      status.textContent = `已載入 ${filename}，共 ${sessionMap.length} 個裝置、${totalDays} 天資料`;
+      // Auto-collapse upload area after successful load
+      document.getElementById('upload-area').classList.remove('open');
+      document.getElementById('upload-toggle').classList.remove('open');
+
+      // Enable batch button regardless
+      document.getElementById('analyze-all-btn').disabled = false;
+    } catch (err) {
+      status.textContent = `解析失敗：${err.message}`;
+      console.error(err);
+    }
+  }
+
+  // ── Load config.json then auto-load CSV ──────────────────────────────────
+  let defaultCsv = 'AngelaHsu_glucose_2026-3-23.csv'; // fallback if not in config.json
+
+  (async () => {
+    const status = document.getElementById('status');
+
+    // 1. Read config.json
+    try {
+      const res = await fetch('config.json');
+      if (res.ok) {
+        const cfg = await res.json();
+        if (cfg.litellmUrl)   document.getElementById('ai-url').value   = cfg.litellmUrl;
+        if (cfg.litellmKey)   document.getElementById('ai-key').value   = cfg.litellmKey;
+        if (cfg.litellmModel) document.getElementById('ai-model').value = cfg.litellmModel;
+        if (cfg.defaultCsv)   defaultCsv = cfg.defaultCsv;
+      }
+    } catch (_) {
+      // config.json not found — silently ignore, user can fill in manually
+    }
+
+    // 2. Auto-load default CSV
+    status.textContent = `自動載入 ${defaultCsv}…`;
+    try {
+      const res = await fetch(defaultCsv);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const text = await res.text();
+      loadText(text, defaultCsv);
+    } catch (err) {
+      status.textContent = `未能自動載入預設 CSV（${err.message}）。請使用上方按鈕手動選取檔案。`;
+    }
+  })();
+
+  // ── File input handler ────────────────────────────────────────────────────
+  document.getElementById('file-input').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const status = document.getElementById('status');
+    status.textContent = '載入中…';
+
+    const reader = new FileReader();
+    reader.onload = (evt) => loadText(evt.target.result, file.name);
+    reader.onerror = () => { status.textContent = '讀取檔案失敗'; };
+    reader.readAsText(file, 'UTF-8');
+  });
+
+  // ── Collapsible panels ────────────────────────────────────────────────────
+  function makeCollapsible(toggleId, bodyId) {
+    const toggle = document.getElementById(toggleId);
+    const body   = document.getElementById(bodyId);
+    toggle.addEventListener('click', () => {
+      const open = body.classList.toggle('open');
+      toggle.classList.toggle('open', open);
+    });
+  }
+
+  makeCollapsible('upload-toggle', 'upload-area');
+  makeCollapsible('ai-config-toggle', 'ai-config-body');
+
+
+  </script>
+</body>
+</html>
