@@ -724,9 +724,10 @@
 
   // ── HTML tooltip (shared, follows mouse, never overlaps chart) ──────────
   const htmlTip = document.getElementById('html-tooltip');
+  let tipFrozen = false;
 
   document.addEventListener('mousemove', (e) => {
-    if (htmlTip.style.display === 'none') return;
+    if (htmlTip.style.display === 'none' || tipFrozen) return;
     const pad = 14;
     const tw = htmlTip.offsetWidth;
     const th = htmlTip.offsetHeight;
@@ -739,11 +740,27 @@
   });
 
   function showTip(text) {
+    if (tipFrozen) return;
     htmlTip.textContent = text;
     htmlTip.style.display = 'block';
+    htmlTip.style.outline = '';
   }
 
   function hideTip() {
+    if (tipFrozen) return;
+    htmlTip.style.display = 'none';
+  }
+
+  function freezeTip(text) {
+    tipFrozen = true;
+    htmlTip.textContent = text;
+    htmlTip.style.display = 'block';
+    htmlTip.style.outline = '2px solid rgba(255,255,255,0.5)';
+  }
+
+  function unfreezeTip() {
+    tipFrozen = false;
+    htmlTip.style.outline = '';
     htmlTip.style.display = 'none';
   }
 
@@ -1079,6 +1096,18 @@ ${sessionBlocks.join('\n\n---\n\n')}
       const chartData = pts.map(p => ({ x: p.minutes, y: p.glucose }));
       const notes = pts.map(p => p.noteText);
 
+      // pre-compute 2hr-after glucose for each noted point
+      const glucose2hr = pts.map(p => {
+        if (!p.noteText) return null;
+        const target = p.minutes + 120;
+        let best2hr = null, bestDiff = Infinity;
+        for (let j = 0; j < pts.length; j++) {
+          const d = Math.abs(pts[j].minutes - target);
+          if (d < bestDiff) { bestDiff = d; best2hr = j; }
+        }
+        return (best2hr !== null && bestDiff <= 30) ? pts[best2hr].glucose : null;
+      });
+
       // AI summary output area — registered so runAllAnalysis can fill it
       const aiOut = document.createElement('div');
       aiOut.className = 'ai-summary-area';
@@ -1093,8 +1122,14 @@ ${sessionBlocks.join('\n\n---\n\n')}
         return         { bg: '#43a047', border: '#1b5e20' };         // normal — green
       };
 
-      const pointBg     = pts.map(p => p.noteText ? '#9c27b0' : glucoseColor(p.glucose).bg);
-      const pointBorder = pts.map(p => p.noteText ? '#6a0080' : glucoseColor(p.glucose).border);
+      const noteColor = (i) => {
+        const g2 = glucose2hr[i];
+        if (g2 !== null && g2 >= 140) return { bg: '#ff6f00', border: '#e65100' }; // 2hr high — amber-orange
+        return { bg: '#9c27b0', border: '#6a0080' }; // normal note — purple
+      };
+
+      const pointBg     = pts.map((p, i) => p.noteText ? noteColor(i).bg     : glucoseColor(p.glucose).bg);
+      const pointBorder = pts.map((p, i) => p.noteText ? noteColor(i).border  : glucoseColor(p.glucose).border);
       const pointR      = pts.map(p => p.noteText ? 5 : 2);
       const pointStyle  = pts.map(p => p.noteText ? 'rectRot' : 'circle');
 
@@ -1258,8 +1293,25 @@ ${sessionBlocks.join('\n\n---\n\n')}
           hoveredIdx = ptsIdx;
           chart.update('none');
           tr.style.background = '#f0e6ff';
+          // show tooltip with 2hr-after glucose
+          const p = pts[ptsIdx];
+          let text = `${minutesToLabel(p.minutes)}　葡萄糖：${p.glucose} mg/dL`;
+          if (p.noteText) {
+            const target2hr = p.minutes + 120;
+            let best2hr = null, bestDiff2hr = Infinity;
+            for (let j = 0; j < pts.length; j++) {
+              const d = Math.abs(pts[j].minutes - target2hr);
+              if (d < bestDiff2hr) { bestDiff2hr = d; best2hr = j; }
+            }
+            if (best2hr !== null && bestDiff2hr <= 30) {
+              text += `\n${minutesToLabel(pts[best2hr].minutes)}　葡萄糖：${pts[best2hr].glucose} mg/dL`;
+            }
+            text += `\n\n── 備註 ──\n${p.noteText}`;
+          }
+          showTip(text);
         });
         tr.addEventListener('mouseleave', () => {
+          if (tipFrozen) return;
           hoveredIdx = null;
           chart.update('none');
           hideTip();
@@ -1269,6 +1321,7 @@ ${sessionBlocks.join('\n\n---\n\n')}
 
       // Show tooltip + highlight for nearest point along X axis
       canvas.addEventListener('mousemove', (e) => {
+        if (tipFrozen) return;
         const rect = canvas.getBoundingClientRect();
         const xPixel = e.clientX - rect.left;
         const ca = chart.chartArea;
@@ -1289,11 +1342,56 @@ ${sessionBlocks.join('\n\n---\n\n')}
 
         const p = pts[best];
         let text = `${minutesToLabel(p.minutes)}　葡萄糖：${p.glucose} mg/dL`;
-        if (notes[best]) text += `\n\n── 備註 ──\n${notes[best]}`;
+        if (notes[best]) {
+          // find glucose reading ~2 hours (120 min) after the noted point
+          const target2hr = p.minutes + 120;
+          let best2hr = null, bestDiff2hr = Infinity;
+          for (let j = 0; j < pts.length; j++) {
+            const d = Math.abs(pts[j].minutes - target2hr);
+            if (d < bestDiff2hr) { bestDiff2hr = d; best2hr = j; }
+          }
+          if (best2hr !== null && bestDiff2hr <= 30) {
+            text += `\n${minutesToLabel(pts[best2hr].minutes)}　葡萄糖：${pts[best2hr].glucose} mg/dL`;
+          }
+          text += `\n\n── 備註 ──\n${notes[best]}`;
+        }
         showTip(text);
       });
 
+      canvas.addEventListener('click', (e) => {
+        if (tipFrozen) { unfreezeTip(); return; }
+        const rect = canvas.getBoundingClientRect();
+        const xPixel = e.clientX - rect.left;
+        const ca = chart.chartArea;
+        if (!ca || xPixel < ca.left || xPixel > ca.right) return;
+
+        const xVal = chart.scales.x.getValueForPixel(xPixel);
+        let best = null, bestDiff = Infinity;
+        for (let i = 0; i < pts.length; i++) {
+          const diff = Math.abs(pts[i].minutes - xVal);
+          if (diff < bestDiff) { bestDiff = diff; best = i; }
+        }
+        if (best === null) return;
+
+        const p = pts[best];
+        let text = `${minutesToLabel(p.minutes)}　葡萄糖：${p.glucose} mg/dL`;
+        if (notes[best]) {
+          const target2hr = p.minutes + 120;
+          let best2hr = null, bestDiff2hr = Infinity;
+          for (let j = 0; j < pts.length; j++) {
+            const d = Math.abs(pts[j].minutes - target2hr);
+            if (d < bestDiff2hr) { bestDiff2hr = d; best2hr = j; }
+          }
+          if (best2hr !== null && bestDiff2hr <= 30) {
+            text += `\n${minutesToLabel(pts[best2hr].minutes)}　葡萄糖：${pts[best2hr].glucose} mg/dL`;
+          }
+          text += `\n\n── 備註 ──\n${notes[best]}`;
+        }
+        freezeTip(text);
+      });
+
       canvas.addEventListener('mouseleave', () => {
+        if (tipFrozen) return;
         hoveredIdx = null; chart.update('none'); hideTip();
       });
       } // end for dateStr

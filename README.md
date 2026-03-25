@@ -1,3 +1,5 @@
+https://otto997.github.io/glucose/
+
 # glu — 葡萄糖數據摘要
 
 一個純前端的連續血糖監測（CGM）數據視覺化工具，支援 LibreLink 匯出的 CSV 檔案，並可透過 LiteLLM 代理呼叫 AI 進行分析。
