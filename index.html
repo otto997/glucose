@@ -415,6 +415,11 @@
       width: 80px;
     }
 
+    .notes-table .note-glucose-2hr {
+      white-space: nowrap;
+      width: 80px;
+    }
+
     .notes-table tbody tr:hover {
       background: #f0e6ff;
       cursor: pointer;
@@ -1050,6 +1055,18 @@ ${sessionBlocks.join('\n\n---\n\n')}
       `;
       card.appendChild(legend);
 
+      // pre-compute 2hr-after glucose for each noted point
+      const glucose2hr = pts.map(p => {
+        if (!p.noteText) return null;
+        const target = p.minutes + 120;
+        let best2hr = null, bestDiff = Infinity;
+        for (let j = 0; j < pts.length; j++) {
+          const d = Math.abs(pts[j].minutes - target);
+          if (d < bestDiff) { bestDiff = d; best2hr = j; }
+        }
+        return (best2hr !== null && bestDiff <= 30) ? pts[best2hr].glucose : null;
+      });
+
       // Notes table (only if any notes exist for this day)
       const notedPts = pts.filter(p => p.noteText);
       const noteTableRows = []; // filled below, events bound after chart creation
@@ -1067,6 +1084,7 @@ ${sessionBlocks.join('\n\n---\n\n')}
         table.innerHTML = `<thead><tr>
           <th class="note-time">時間</th>
           <th class="note-glucose">血糖 mg/dL</th>
+          <th class="note-glucose-2hr">兩小時後血糖</th>
           <th>備註內容</th>
         </tr></thead>`;
 
@@ -1075,11 +1093,16 @@ ${sessionBlocks.join('\n\n---\n\n')}
           const h = String(Math.floor(p.minutes / 60)).padStart(2, '0');
           const m = String(p.minutes % 60).padStart(2, '0');
           const gc = glucoseColorLabel(p.glucose);
+          const pIdx = pts.indexOf(p);
+          const g2hr = glucose2hr[pIdx];
+          const g2hrColor = g2hr !== null ? glucoseColorLabel(g2hr).color : '#999';
+          const g2hrText = g2hr !== null ? g2hr : '-';
           const tr = document.createElement('tr');
           tr.style.cursor = 'pointer';
           tr.innerHTML = `
             <td class="note-time">${h}:${m}</td>
             <td class="note-glucose" style="color:${gc.color}">${p.glucose}</td>
+            <td class="note-glucose-2hr" style="color:${g2hrColor}">${g2hrText}</td>
             <td class="note-text">${escapeHtml(p.noteText)}</td>`;
           tbody.appendChild(tr);
           // store reference with the pts index for later event binding
@@ -1095,18 +1118,6 @@ ${sessionBlocks.join('\n\n---\n\n')}
       // data — use minutes as numeric x values
       const chartData = pts.map(p => ({ x: p.minutes, y: p.glucose }));
       const notes = pts.map(p => p.noteText);
-
-      // pre-compute 2hr-after glucose for each noted point
-      const glucose2hr = pts.map(p => {
-        if (!p.noteText) return null;
-        const target = p.minutes + 120;
-        let best2hr = null, bestDiff = Infinity;
-        for (let j = 0; j < pts.length; j++) {
-          const d = Math.abs(pts[j].minutes - target);
-          if (d < bestDiff) { bestDiff = d; best2hr = j; }
-        }
-        return (best2hr !== null && bestDiff <= 30) ? pts[best2hr].glucose : null;
-      });
 
       // AI summary output area — registered so runAllAnalysis can fill it
       const aiOut = document.createElement('div');
@@ -1441,6 +1452,21 @@ ${sessionBlocks.join('\n\n---\n\n')}
         const overallArea = document.getElementById('ai-overall');
         overallArea.style.display = 'none';
         overallArea.innerHTML = '';
+        
+        // Update title with selected device's date range
+        const sortedDays = Object.keys(session.dayMap).sort();
+        if (sortedDays.length > 0) {
+          const startDate = sortedDays[0];
+          const endDate = sortedDays[sortedDays.length - 1];
+          let newTitle = '葡萄糖數據摘要';
+          if (ownerName) newTitle = `${ownerName} - ${newTitle}`;
+          if (sortedDays.length > 1) {
+            newTitle += ` (${startDate} ~ ${endDate})`;
+          } else {
+            newTitle += ` (${startDate})`;
+          }
+          document.title = newTitle;
+        }
       };
 
       select.addEventListener('change', renderSelected);
