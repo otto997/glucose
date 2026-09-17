@@ -1418,6 +1418,14 @@ ${sessionBlocks.join('\n\n---\n\n')}
       const ownerName = meta[4]?.trim() || '';
       document.getElementById('owner-name').textContent = ownerName ? `資料所有人：${ownerName}` : '';
       const sessionMap = processRows(rows);
+      // Sort sessions chronologically (old to new)
+      sessionMap.sort((a, b) => {
+        const aDays = Object.keys(a.dayMap).sort((x, y) => new Date(x.replace(/-/g, '/')) - new Date(y.replace(/-/g, '/')));
+        const bDays = Object.keys(b.dayMap).sort((x, y) => new Date(x.replace(/-/g, '/')) - new Date(y.replace(/-/g, '/')));
+        const aStart = aDays[0] ? new Date(aDays[0].replace(/-/g, '/')).getTime() : 0;
+        const bStart = bDays[0] ? new Date(bDays[0].replace(/-/g, '/')).getTime() : 0;
+        return aStart - bStart;
+      });
       const totalDays = sessionMap.reduce((n, s) => n + Object.keys(s.dayMap).length, 0);
       allSessionMap = sessionMap;
 
@@ -1437,9 +1445,21 @@ ${sessionBlocks.join('\n\n---\n\n')}
         select.appendChild(opt);
       });
 
-      // Default to the latest session (last index)
-      const defaultIdx = sessionMap.length - 1;
-      select.value = defaultIdx;
+      // Default to the latest session (by finding the session with the latest date)
+      let defaultIdx = sessionMap.length - 1;
+      let latestTime = -Infinity;
+      sessionMap.forEach((session, idx) => {
+        const sortedDays = Object.keys(session.dayMap).sort((a, b) => new Date(a.replace(/-/g, '/')) - new Date(b.replace(/-/g, '/')));
+        if (sortedDays.length > 0) {
+          const maxDateStr = sortedDays[sortedDays.length - 1];
+          const time = new Date(maxDateStr.replace(/-/g, '/')).getTime();
+          if (time >= latestTime) {
+            latestTime = time;
+            defaultIdx = idx;
+          }
+        }
+      });
+      select.value = String(defaultIdx);
       wrap.style.display = sessionMap.length > 1 ? 'flex' : 'none';
 
       // Helper: render the selected session
